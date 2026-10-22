@@ -1,5 +1,4 @@
 
-
 # Persian calendar
 ## WPF calendar with support for Gregorian and solar calendars
 
@@ -222,7 +221,7 @@ All examples below use:
 
 ```csharp
 
-var date = new DateTime(2026, 10, 22, 15, 30, 45);
+var date = new DateTime(2026, 10, 22, 15, 30, 45); // 1405/07/30 15:30:45
 
 ```
 
@@ -319,7 +318,7 @@ var date = new DateTime(2026, 10, 22, 15, 30, 45);
 | `GetLastWeekdayOfPersianMonth(PersianDayOfWeek.Friday)` | `1405/07/24 00:00:00` |
 
 
-## DateTime Extensions (Gregorian)
+## Native DateTime Extensions (Gregorian)
 
 All examples below use:
 
@@ -429,19 +428,19 @@ var date = new DateTime(2026, 10, 22, 15, 30, 45);
 ## Controls
 - Clock
 
-![IMAGE_DESCRIPTION](https://raw.githubusercontent.com/Behnam2064/PersianDateTimeWPFTools/refs/heads/main/clock.png)
+![IMAGE_DESCRIPTION](https://raw.githubusercontent.com/Behnam2064/PersianDateTimeWPFTools.doc/refs/heads/main/clock.png)
 - PersianCalendar
 
-![IMAGE_DESCRIPTION](https://raw.githubusercontent.com/Behnam2064/PersianDateTimeWPFTools/refs/heads/main/pc.png)
+![IMAGE_DESCRIPTION](https://raw.githubusercontent.com/Behnam2064/PersianDateTimeWPFTools.doc/refs/heads/main/pc.png)
 - PersianCalendarWithClock
 
-![IMAGE_DESCRIPTION](https://raw.githubusercontent.com/Behnam2064/PersianDateTimeWPFTools/refs/heads/main/pdpwc.png)
+![IMAGE_DESCRIPTION](https://raw.githubusercontent.com/Behnam2064/PersianDateTimeWPFTools.doc/refs/heads/main/pdpwc.png)
 - PersianDatePicker
 
-![IMAGE_DESCRIPTION](https://raw.githubusercontent.com/Behnam2064/PersianDateTimeWPFTools/refs/heads/main/pdp.png)
+![IMAGE_DESCRIPTION](https://raw.githubusercontent.com/Behnam2064/PersianDateTimeWPFTools.doc/refs/heads/main/pdp.png)
 - PersianDateTimePicker
 
-![IMAGE_DESCRIPTION](https://raw.githubusercontent.com/Behnam2064/PersianDateTimeWPFTools/refs/heads/main/pdtp.png)
+![IMAGE_DESCRIPTION](https://raw.githubusercontent.com/Behnam2064/PersianDateTimeWPFTools.doc/refs/heads/main/pdtp.png)
 
 
 You can manually change the Culture of the control using the following code in XAML or C#.
@@ -494,7 +493,7 @@ Sample:
 ```
 
 ## Ability to write custom styles for all controls
-![IMAGE_DESCRIPTION](https://raw.githubusercontent.com/Behnam2064/PersianDateTimeWPFTools/refs/heads/main/Persian-calendar-Custom-Style.png)
+![IMAGE_DESCRIPTION](https://raw.githubusercontent.com/Behnam2064/PersianDateTimeWPFTools.doc/refs/heads/main/Persian-calendar-Custom-Style.png)
 
 
 ## Dependency Properties and Features
@@ -523,7 +522,7 @@ Sample:
 
 ## ❔ What is DayMetadata?
 
-![IMAGE_DESCRIPTION](https://raw.githubusercontent.com/Behnam2064/PersianDateTimeWPFTools/refs/heads/main/dayMetadataUse.png)
+![IMAGE_DESCRIPTION](https://raw.githubusercontent.com/Behnam2064/PersianDateTimeWPFTools.doc/refs/heads/main/dayMetadataUse.png)
 
 introduce DayMetadata API for unified per-day customization
 - Added CalendarDayInfo model to describe per-day metadata
@@ -628,7 +627,7 @@ persianCalendar.DayMetadata = preDayMetadata;
 ```
 ## ⚙️How to use Day ToolTips?
 
-![IMAGE_DESCRIPTION](https://raw.githubusercontent.com/Behnam2064/PersianDateTimeWPFTools/refs/heads/main/dayTooltip.png)
+![IMAGE_DESCRIPTION](https://raw.githubusercontent.com/Behnam2064/PersianDateTimeWPFTools.doc/refs/heads/main/dayTooltip.png)
 
 C#
 
@@ -678,7 +677,7 @@ And in your control
 DayToolTipTemplate="{StaticResource FancyDayToolTipTemplate}"
 ```
 ## ⚙️How to use Day Indicators?
-![IMAGE_DESCRIPTION](https://raw.githubusercontent.com/Behnam2064/PersianDateTimeWPFTools/refs/heads/main/dayIndicator.png)
+![IMAGE_DESCRIPTION](https://raw.githubusercontent.com/Behnam2064/PersianDateTimeWPFTools.doc/refs/heads/main/dayIndicator.png)
 
 C#
 
@@ -843,5 +842,3 @@ bool expiredAgainstClock = deadline.HasExpired();
 `PersianDateTime` is a static facade; parsing returns `System.DateTime` and `Now` returns an immutable `PersianDateTimeParts` snapshot. `Now` uses one configured service snapshot and reads the configured clock once. Default clock time is local. The date-only text does not discard the captured time or `Kind`, and does not read later configuration changes.
 
 `IsBetween` uses `[startInclusive, endExclusive)`, matching `PersianDateRange.Contains`; equal boundaries form an empty interval and reversed boundaries throw. Use the existing `Contains`, not `IsContains`, on a range. `HasExpired` is true at the deadline (`referenceTime >= deadline`). Comparisons retain tick precision, do not convert time zones and require inputs on the same time basis. For a UTC deadline, pass an explicit UTC reference time. The overload without a reference reads `ClockProvider.Current.Now` once.
-
-Unpublished API rename: `PersianDate` → `PersianDateTime`; delete the old `PersianDateTime.cs` when applying the source changes.
