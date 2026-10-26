@@ -9,6 +9,230 @@
 Please see the test project for further guidance.
 
 
+## Quick start
+
+Install the package in a WPF application:
+
+```shell
+dotnet add package PersianDateTimeWPFTools
+```
+
+Add the package namespace and place a control in your window:
+
+```xml
+<Window x:Class="MyApp.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:pdtt="https://github.com/Behnam2064/PersianDateTimeWPFTools"
+        Title="Calendar" Width="400" Height="450">
+    <Grid>
+        <pdtt:PersianCalendar />
+    </Grid>
+</Window>
+```
+
+Replace `MyApp.MainWindow` with your window's class name. Default styles load automatically through `Themes/Generic.xaml`. You do not need to merge `InitResources` for the default appearance.
+
+## ClockPicker
+
+`ClockPicker` combines an editable time field with the existing `Clock` in a popup. It derives from `ClockBase` and keeps the same `DateTime? SelectedTime`, `DateTime DisplayTime`, `TimeFormat`, `SelectedTimeChanged` and `Confirmed` contracts.
+
+```xml
+<pdtt:ClockPicker SelectedTime="{Binding AppointmentTime}"
+                  TimeFormat="HH:mm:ss"
+                  Watermark="Select a time" />
+```
+
+Use a `DateTime?` view-model property; selection binds two-way by default. The control edits the time of day while preserving the selected/displayed date and `Kind`. Default styles work without initialization, and all five existing themes are supported.
+
+- Type a time and press Enter, or open the popup and use the clock. Seconds are optional: `14:30` is accepted with the default `HH:mm:ss` format and displayed as `14:30:00`.
+- Clock interactions update the selection immediately. Escape restores the value captured on opening; closing by clicking outside keeps the current value.
+- The confirmation button or Enter in the popup confirms the displayed time and closes it. `ShowConfirmButton="False"` hides the footer.
+- Empty text clears the selection. Invalid text raises `TimeValidationError` and restores the previous formatted value.
+- Supported formats include `HH:mm`, `HH:mm:ss`, `hh:mm tt`, `HH:mm:ss.fff`, `t` and `T`. Formatting/parsing use `CultureInfo.CurrentCulture`; Persian and Arabic-Indic digits are accepted. Date-bearing formats are rejected.
+- `IsReadOnly`, `ClockStyle`, `ConfirmButtonContent` and `Watermark` support customization. Explicit styles keep WPF's normal precedence.
+- F4 or Alt+Down toggles the popup. Escape cancels popup changes; Tab continues focus navigation.
+- UI Automation Value and ExpandCollapse patterns are supported.
+
+`Text` validates immediately when set programmatically; editor typing is committed on Enter, focus loss or opening the popup. Text that already matches the formatted selection retains hidden precision; changed text uses the parsed fields (for example, editing an `HH:mm` value resets seconds to zero).
+
+For localized AM/PM and confirmation labels, change the language on your merged `InitResources` instance. New `ClockBase.AmDesignator` and `PmDesignator` properties provide English fallbacks when no language resources are merged. The default confirmation label is also available without initialization.
+
+## Themes and resources
+
+### Select a startup theme
+
+To select an application-wide theme, merge one `InitResources` instance into `App.xaml`:
+
+```xml
+<Application x:Class="MyApp.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:pdtt="https://github.com/Behnam2064/PersianDateTimeWPFTools"
+             StartupUri="MainWindow.xaml">
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <pdtt:InitResources SelectedTheme="LightModern1" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>
+```
+
+Replace `MyApp.App` with your application's class name. Omit `SelectedTheme` to keep the default theme. `InitResources` also exposes the package's named styles and language resources. Merge it once; do not also merge `Resources.xaml` directly.
+
+| Theme | Enum value | Theme class |
+|---|---|---|
+| Default | `BaseThemeName.Default` | `ThemeDefault` |
+| Dark Modern | `BaseThemeName.DarkModern1` | `ThemeDarkModern1` |
+| Light Modern | `BaseThemeName.LightModern1` | `ThemeLightModern1` |
+| Dark Classic | `BaseThemeName.DarkClassic` | `ThemeDarkClassic` |
+| Light Classic | `BaseThemeName.LightClassic` | `ThemeLightClassic` |
+
+### Switch themes at runtime
+
+Call `SetTheme` on the application's UI thread after the WPF `Application` has been created, for example in a button handler or `OnStartup`:
+
+```csharp
+using PersianDateTimeWPFTools.Themes;
+using PersianDateTimeWPFTools.Tools;
+
+InitResources.SetTheme(new ThemeDarkModern1());
+
+// Switch again without recreating controls.
+InitResources.SetTheme(new ThemeLightClassic());
+
+// Return to the default appearance.
+InitResources.SetTheme(new ThemeDefault());
+```
+
+These calls demonstrate alternatives; call the one matching the user's selection. Existing and newly created controls use the selected theme through implicit styles. Theme changes replace the library's active resource dictionary and preserve the selected language.
+
+`SetTheme` works without merging `InitResources` first. It requires a WPF `Application` and its UI thread. Passing `null` or an invalid theme is rejected. `SelectedTheme` and `InitResources.Theme` represent application-wide state; setting `SelectedTheme` on a merged instance uses the same theme-switching API. Independent themes for individual windows are not provided by this API.
+
+### Custom styles and resource precedence
+
+The controls no longer assign a local `Style` in their constructors. Explicit styles and implicit styles defined closer to a control retain WPF's normal precedence. Direct entries in `Application.Resources` take precedence over merged dictionaries; later merged dictionaries take precedence over earlier ones.
+
+To follow application-wide theme changes, leave the control's `Style` unset. An explicitly assigned named style stays assigned when the theme changes. Existing named style keys remain available through `InitResources` for applications that intentionally choose a fixed style.
+
+For example, this explicit style preserves the default template while customizing a property:
+
+```xml
+<Window.Resources>
+    <Style x:Key="LargeCalendar" TargetType="{x:Type pdtt:PersianCalendar}">
+        <Setter Property="FontSize" Value="18" />
+    </Style>
+</Window.Resources>
+
+<!-- Place inside the window's content. -->
+<pdtt:PersianCalendar Style="{StaticResource LargeCalendar}" />
+```
+
+The example's style remains in place during theme changes. For customization that follows the active theme, prefer setting individual control properties instead of assigning a fixed `Style`.
+
+### Theme notifications
+
+```csharp
+using System;
+using PersianDateTimeWPFTools.Tools;
+
+InitResources.OnTheme += HandleThemeChanged;
+
+// Unsubscribe when the subscriber no longer needs notifications.
+InitResources.OnTheme -= HandleThemeChanged;
+
+void HandleThemeChanged(object sender, ThemeChangedEventArgs e)
+{
+    Console.WriteLine($"Theme changed from {e.OldTheme.Theme} to {e.NewTheme.Theme}");
+}
+```
+
+`OnTheme` is a static event, raised after a successful theme change. Its sender is `null`. Manage subscriptions for the subscriber's lifetime. The controls update through resource lookup and do not need to subscribe to this event.
+
+## Control language resources
+
+Built-in language codes are `fa` and `en`. When constructed, `InitResources` selects Persian if `CultureInfo.CurrentUICulture.TwoLetterISOLanguageName` is `fa`; otherwise it selects English. Without `InitResources`, the default resource fallback is English.
+
+To change the language at runtime, update the same instance that is merged into the application's resources. With the `App.xaml` example above:
+
+```csharp
+using System.Linq;
+using System.Windows;
+using PersianDateTimeWPFTools.Tools;
+
+var calendarResources = Application.Current.Resources.MergedDictionaries
+    .OfType<InitResources>()
+    .Single();
+
+calendarResources.ChangeLanguage("fa");
+// Or: calendarResources.ChangeLanguage("en");
+```
+
+This example assumes exactly one `InitResources` instance is merged directly into `Application.Resources`. Keep a reference to the instance yourself if your resource structure is different.
+
+For initialization entirely in code, create and merge the instance before using it:
+
+```csharp
+using System.Windows;
+using PersianDateTimeWPFTools.Tools;
+
+public partial class App : Application
+{
+    protected override void OnStartup(StartupEventArgs e)
+    {
+        base.OnStartup(e);
+
+        // Use this approach when InitResources is not already merged in App.xaml.
+        var calendarResources = new InitResources();
+        calendarResources.ChangeLanguage("fa");
+        Resources.MergedDictionaries.Add(calendarResources);
+    }
+}
+```
+
+Constructing `InitResources` alone does not modify `Application.Resources`. Calling `new InitResources().ChangeLanguage("fa")` without merging that instance therefore does not change the application's controls. Language changes replace only the language dictionary owned by that instance.
+
+Language resources supply labels such as AM, PM, Today and Confirm. They are separate from `CustomCulture` and `CustomCultureName`, which control the calendar's culture and date presentation. Change those control properties separately when required.
+
+### Custom language dictionaries
+
+Create a WPF resource dictionary with the same keys as the built-in language resources. For example, add `Lang.es.xaml` to your application with build action `Page`:
+
+```xml
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:sys="clr-namespace:System;assembly=mscorlib">
+    <sys:String x:Key="AmText">a. m.</sys:String>
+    <sys:String x:Key="PmText">p. m.</sys:String>
+    <sys:String x:Key="ConfirmText">Confirmar</sys:String>
+    <sys:String x:Key="TodayText">Hoy</sys:String>
+</ResourceDictionary>
+```
+
+Load it through the merged instance, replacing `MyApp` with your application's assembly name:
+
+```csharp
+calendarResources.ChangeLanguage(
+    "es",
+    "pack://application:,,,/MyApp;component/Lang.es.xaml");
+```
+
+A language other than `fa` or `en` requires `lanAddress`. Run language changes on the application UI thread. Switching themes does not reset the selected language dictionary.
+
+## Migration: resources and theming
+
+- Default styles now load automatically. Remove initialization used only to make the default controls visible.
+- Keep one merged `InitResources` instance if you need language selection or named styles. Do not depend on its constructor to modify application resources.
+- Replace language changes on temporary, unmerged instances with changes on the merged instance.
+- `OnTheme` is now an event: subscribe with `+=` and unsubscribe with `-=`. Direct assignment and invocation from consumer code are no longer supported; the sender is now `null`.
+- `ThemeChangedEventArgs.OldTheme` now contains the previous theme.
+- `InitResources(bool noInit)` is obsolete. Use the parameterless constructor.
+- Review explicitly assigned styles if controls should follow runtime theme changes; those styles retain their normal precedence.
+
+
 ## Date and calendar APIs
 
 The date helpers can be used without instantiating a WPF control. The package still targets the Windows frameworks listed in the project. Examples below assume `DateTime date` and `DateTime other` are available; asynchronous examples belong in an async method or command.
@@ -214,7 +438,6 @@ Provider facades in `PersianDateTimeWPFTools.Providers` expose configured servic
 
 
 
-Persian DateTime Extensions
 ## Persian DateTime Extensions
 
 All examples below use:
@@ -314,8 +537,8 @@ var date = new DateTime(2026, 10, 22, 15, 30, 45); // 1405/07/30 15:30:45
 
 | Method | Result |
 |----------|----------|
-| `TryGetNthWeekdayOfPersianMonth(PersianDayOfWeek.Friday, 2, out var result)` | `1405/07/10 00:00:00` |
-| `GetLastWeekdayOfPersianMonth(PersianDayOfWeek.Friday)` | `1405/07/24 00:00:00` |
+| `TryGetNthWeekdayOfPersianMonth(PersianDayOfWeek.Friday, 2, out var result)` | `1405/07/10 15:30:45` |
+| `GetLastWeekdayOfPersianMonth(PersianDayOfWeek.Friday)` | `1405/07/24 15:30:45` |
 
 
 ## Native DateTime Extensions (Gregorian)
@@ -352,8 +575,8 @@ var date = new DateTime(2026, 10, 22, 15, 30, 45);
 
 | Method | Result |
 |----------|----------|
-| `StartOfWeek()` | `2026-10-18 00:00:00` |
-| `StartOfNextWeek()` | `2026-10-25 00:00:00` |
+| `StartOfWeek()` | `2026-10-19 00:00:00` |
+| `StartOfNextWeek()` | `2026-10-26 00:00:00` |
 | `GetWeekOfYear()` | `43` |
 
 ### Quarter Operations
@@ -442,6 +665,9 @@ var date = new DateTime(2026, 10, 22, 15, 30, 45);
 
 ![IMAGE_DESCRIPTION](https://raw.githubusercontent.com/Behnam2064/PersianDateTimeWPFTools.doc/refs/heads/main/pdtp.png)
 
+- ClockPicker 
+editable time field with a popup clock; see the ClockPicker section above.
+![IMAGE_DESCRIPTION](https://raw.githubusercontent.com/Behnam2064/PersianDateTimeWPFTools.doc/refs/heads/main/cpdl.png)
 
 You can manually change the Culture of the control using the following code in XAML or C#.
 
@@ -455,42 +681,6 @@ CustomCultureName="fa-IR"
 pcwc1.CustomCulture = CultureInfo.CreateSpecificCulture("en-US");
 ```
 If you do not select Culture, it will be automatically selected based on the software's Culture.
-
-## ⚙️How to use?
-Step 1: Add the following resources in the App.xaml file
-
-```
-<Application 
-             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:pdtt="https://github.com/Behnam2064/PersianDateTimeWPFTools"
-             >
-    <Application.Resources>
-        <ResourceDictionary>
-            <ResourceDictionary.MergedDictionaries>
-                <pdtt:InitResources />
-            </ResourceDictionary.MergedDictionaries>
-        </ResourceDictionary>
-    </Application.Resources>
-</Application>
-```
-
-Step 2:
-Use in XAML (WPF) files
-You can use below namespace in xaml (wpf)
-
-xmlns:pdtt="https://github.com/Behnam2064/PersianDateTimeWPFTools"
-
-
-Sample:
-```
-<Window 
-    xmlns:pdtt="https://github.com/Behnam2064/PersianDateTimeWPFTools">
-    <Grid>
-        <pdtt:PersianCalendar />
-    </Grid>
-</Window>
-```
 
 ## Ability to write custom styles for all controls
 ![IMAGE_DESCRIPTION](https://raw.githubusercontent.com/Behnam2064/PersianDateTimeWPFTools.doc/refs/heads/main/Persian-calendar-Custom-Style.png)
@@ -727,76 +917,6 @@ And in your control
 DayIndicatorStyle="{StaticResource RedDotIndicatorStyle}"
 ```
 
-## ⚙️How to change the theme
-In the **App.xaml** file, you can select one of the following themes by selecting the **SelectedTheme** property in the InitResources class.
-- Default
-- DarkModern1
-- LightModern1
-```
-<Application 
-             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:pdtt="https://github.com/Behnam2064/PersianDateTimeWPFTools"
-             >
-    <Application.Resources>
-        <ResourceDictionary>
-            <ResourceDictionary.MergedDictionaries>
-                <pdtt:InitResources
-                    SelectedTheme="LightModern1"
-                />
-            </ResourceDictionary.MergedDictionaries>
-        </ResourceDictionary>
-    </Application.Resources>
-</Application>
-```
-
-## ⚙️How to change theme in C#
-You can do the following in the constructor of the App.xaml.cs class:
-```
-public partial class App : Application
-    {        
-        public App()
-        {
-            var init = new InitResources();
-            init.SelectedTheme = PersianDateTimeWPFTools.Themes.BaseThemeName.DarkModern1;
-        }
-    }
-```
-or
-```
-public partial class App : Application
-    {        
-        public App()
-        {
-            InitResources.SetTheme(new ThemeDarkModern1());
-        }
-    }
-```
-## ⚙️How to change the control language?
-```
-public partial class App : Application
-    {        
-        public App()
-        {
-            new InitResources()
-            .ChangeLanguage("fa"); // en
-        }
-    }
-```
-
-## ⚙️How to change the language of controls with our own resources
-To read the language resources, please visit the link below.
-[Github Link](https://github.com/Behnam2064/PersianDateTimeWPFTools/blob/main/PersianDateTimeWPFTools/PersianDateTimeWPFTools/Resources/Lang/Lang.en.xaml)
-```
-public partial class App : Application
-    {        
-        public App()
-        {
-            new InitResources()
-            .ChangeLanguage(null, "pack://application:,,,/TestPersianCalendar;component/Lang.es.xaml"); // Your resource address
-        }
-    }
-```
 ## ISystemClock and ClockProvider
 `ISystemClock` provides a replaceable time source for testability and for scenarios where WPF calendar controls must use a custom value for the current time.
 
