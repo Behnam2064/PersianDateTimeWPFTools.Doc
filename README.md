@@ -1,3 +1,4 @@
+
 # Persian calendar
 ## WPF date and time controls with support for eight calendars
 ![IMAGE_DESCRIPTION](https://raw.githubusercontent.com/Behnam2064/PersianDateTimeWPFTools.doc/refs/heads/main/all-suppored-calendar.png)
@@ -11,6 +12,24 @@ Install the package in a WPF application:
 
 ```shell
 dotnet add package PersianDateTimeWPFTools
+```
+Add the ResourceDictionary library to your application:
+```xml
+<Application
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:pdtt="https://github.com/Behnam2064/PersianDateTimeWPFTools"
+    StartupUri="MainWindow.xaml">
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <pdtt:InitResources
+                    SelectedTheme="Default" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>
+
 ```
 
 Add the package namespace and place a control in your window:
@@ -27,7 +46,7 @@ Add the package namespace and place a control in your window:
 </Window>
 ```
 
-Replace `MyApp.MainWindow` with your window's class name. Default styles load automatically through `Themes/Generic.xaml`. You do not need to merge `InitResources` for the default appearance.
+Replace `MyApp.MainWindow` with your window's class name. 
 
 ## Supported calendars
 
@@ -1273,6 +1292,3 @@ bool expiredAgainstClock = deadline.HasExpired();
 `PersianDateTime` is a static facade; parsing returns `System.DateTime` and `Now` returns an immutable `PersianDateTimeParts` snapshot. `Now` uses one configured service snapshot and reads the configured clock once. Default clock time is local. The date-only text does not discard the captured time or `Kind`, and does not read later configuration changes.
 
 `IsBetween` uses `[startInclusive, endExclusive)`, matching `PersianDateRange.Contains`; equal boundaries form an empty interval and reversed boundaries throw. Use the existing `Contains`, not `IsContains`, on a range. `HasExpired` is true at the deadline (`referenceTime >= deadline`). Comparisons retain tick precision, do not convert time zones and require inputs on the same time basis. For a UTC deadline, pass an explicit UTC reference time. The overload without a reference reads `ClockProvider.Current.Now` once.
-
-
-
