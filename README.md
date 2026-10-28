@@ -1,13 +1,9 @@
-
 # Persian calendar
-## WPF calendar with support for Gregorian and solar calendars
+## WPF date and time controls with support for eight calendars
 
-- A free Persian calendar with the ability to support the Gregorian calendar that can be used in WPF
+- A free WPF calendar library supporting Persian, Gregorian, Hijri, UmAlQura, Hebrew, Thai Buddhist, Japanese, and Taiwan calendars.
 - You can write any style you like for the controls.
 - Language change support and other resources
-
-Please see the test project for further guidance.
-
 
 ## Quick start
 
@@ -33,6 +29,327 @@ Add the package namespace and place a control in your window:
 
 Replace `MyApp.MainWindow` with your window's class name. Default styles load automatically through `Themes/Generic.xaml`. You do not need to merge `InitResources` for the default appearance.
 
+## Supported calendars
+
+The WPF date controls support eight calendars through `CustomCulture.DateTimeFormat.Calendar`:
+
+| Calendar | .NET calendar class | Culture used in the examples |
+|---|---|---|
+| Persian (Solar Hijri / Shamsi) | `System.Globalization.PersianCalendar` | `fa-IR` |
+| Gregorian | `GregorianCalendar` | `en-US` |
+| Hijri | `HijriCalendar` | `ar-SA` |
+| UmAlQura | `UmAlQuraCalendar` | `ar-SA` |
+| Hebrew | `HebrewCalendar` | `he-IL` |
+| Thai Buddhist | `ThaiBuddhistCalendar` | `th-TH` |
+| Japanese | `JapaneseCalendar` | `ja-JP` |
+| Taiwan | `TaiwanCalendar` | `zh-TW` |
+
+This applies to `PersianCalendar`, `PersianDatePicker`, `PersianCalendarWithClock`, and `PersianDateTimePicker`. Their existing names and selection properties are retained. Calendar selection on these controls does not change the calendar-specific contracts of the Persian/Gregorian services and extension methods documented below.
+
+### Select a calendar explicitly
+
+**`CustomCultureName` selects a culture and its default calendar. It does not guarantee a particular calendar implementation.** For example, `he-IL` can use a Gregorian calendar with Hebrew month/day names. Likewise, `ja-JP`, `ar-SA`, and `zh-TW` alone do not explicitly select Japanese, Hijri, or Taiwan calendars.
+
+To choose a calendar explicitly, create a matching culture, assign its `DateTimeFormat.Calendar`, and pass the **whole culture object** to `CustomCulture`:
+
+```csharp
+using System.Globalization;
+
+var hebrewCulture = new CultureInfo("he-IL", false);
+hebrewCulture.DateTimeFormat.Calendar = new HebrewCalendar();
+
+calendar.CustomCulture = hebrewCulture;
+datePicker.CustomCulture = hebrewCulture;
+calendarWithClock.CustomCulture = hebrewCulture;
+dateTimePicker.CustomCulture = hebrewCulture;
+```
+
+The names `calendar`, `datePicker`, `calendarWithClock`, and `dateTimePicker` refer to controls in your window. Apply the assignment to the controls you use.
+
+> Assigning `CustomCultureName = hebrewCulture.Name` would create a culture again using its default calendar. The `HebrewCalendar` assigned above would not be carried over. Assign `CustomCulture = hebrewCulture` instead, and avoid setting both properties for the same selection.
+
+Use the same pattern for the other calendars:
+
+```csharp
+using System.Globalization;
+
+static CultureInfo CreateCalendarCulture(
+    string cultureName, System.Globalization.Calendar calendar)
+{
+    var culture = new CultureInfo(cultureName, false);
+    culture.DateTimeFormat.Calendar = calendar;
+    return culture;
+}
+
+var persian = CreateCalendarCulture(
+    "fa-IR", new System.Globalization.PersianCalendar());
+var gregorian = CreateCalendarCulture("en-US", new GregorianCalendar());
+var hijri = CreateCalendarCulture(
+    "ar-SA", new HijriCalendar { HijriAdjustment = 0 });
+var umAlQura = CreateCalendarCulture("ar-SA", new UmAlQuraCalendar());
+var hebrew = CreateCalendarCulture("he-IL", new HebrewCalendar());
+var buddhist = CreateCalendarCulture("th-TH", new ThaiBuddhistCalendar());
+var japanese = CreateCalendarCulture("ja-JP", new JapaneseCalendar());
+var taiwan = CreateCalendarCulture("zh-TW", new TaiwanCalendar());
+
+// Select one configured culture.
+datePicker.CustomCulture = hijri;
+```
+
+`HijriAdjustment = 0` explicitly selects the unadjusted Hijri calculation. Set this property on your calendar instance when a different adjustment is required.
+
+For culture defaults, the name-based XAML property remains available:
+
+```xml
+<pdtt:PersianCalendar CustomCultureName="fa-IR" />
+<pdtt:PersianDatePicker CustomCultureName="en-US" />
+```
+
+Without a custom culture, the controls use the culture resolved from their WPF `Language` or the current culture. To change calendar or number-format settings later, assign a newly configured `CultureInfo` to `CustomCulture`; editing the internals of an already assigned instance does not itself raise a WPF dependency-property change notification.
+
+### DateTime values and calendar boundaries
+
+Selected values remain ordinary `DateTime` values:
+
+| Controls | Selection property |
+|---|---|
+| `PersianCalendar`, `PersianDatePicker` | `DateTime? SelectedDate` |
+| `PersianCalendarWithClock`, `PersianDateTimePicker` | `DateTime? SelectedDateTime` |
+| `Clock`, `ClockPicker` | `DateTime? SelectedTime` |
+
+`DateTime.Year`, `Month`, and `Day` expose Gregorian components even when a control displays another calendar. Use the active calendar to obtain its components or construct a date:
+
+```csharp
+var hebrewCalendar = new HebrewCalendar();
+DateTime value = hebrewCalendar.ToDateTime(5784, 1, 15, 0, 0, 0, 0);
+
+datePicker.SelectedDate = value;
+int year = hebrewCalendar.GetYear(value);       // 5784
+int month = hebrewCalendar.GetMonth(value);     // 1: the selected month
+int months = hebrewCalendar.GetMonthsInYear(5784); // 13: months in this year
+```
+
+Each calendar has its own supported range. Read `MinSupportedDateTime` and `MaxSupportedDateTime` from that calendar rather than assuming `DateTime.MinValue` and `DateTime.MaxValue` are supported. These boundaries are also `DateTime` values: for the Hebrew calendar, their Gregorian years are 1583 and 2239, while `GetYear` returns Hebrew years 5343 and 5999.
+
+Changing the display culture does not change the selected date/time value into a different `DateTime`. If an existing selection falls outside a requested calendar's range, the date picker controls report a date validation error and retain the previous accepted selection/culture.
+
+### Calendar-specific behavior
+
+- **Hijri and UmAlQura:** Each uses its own .NET calendar calculations and supported range. Explicitly assign the desired calendar even though both examples use `ar-SA`.
+- **Hebrew:** Common years have 12 months and leap years have 13. The year view adds a fourth row for the extra month and returns to three rows for a common year with the default templates. The thirteenth month is selectable, and month navigation accounts for the actual number of months. Long-date formatting may use Hebrew letters for numbers as defined by .NET's culture formatting.
+- **Thai Buddhist:** Year display uses the Buddhist calendar. Short and long input support five-digit years near the upper `DateTime` boundary.
+- **Japanese:** Short dates include the era. If a long-date or month-heading pattern omits the era, it is included in the control's display. For example, April 30, 2019 displays as `平成 31/04/30`, while May 1, 2019 displays as `令和 01/05/01`. A transition year's heading shows both eras; its year view keeps the twelve months in the same chronological year. Year and decade navigation remain chronological across era changes. Era names come from the runtime's calendar data.
+- **Taiwan:** Months and leap days follow the Gregorian calendar with a different year numbering; for example, Gregorian 2026 is Taiwan year 115.
+
+For manual input, the short date format is `yyyy/MM/dd`, with an era prefix for Japanese dates. Long dates follow the effective culture's long-date pattern, with the calendar-specific handling described above. Keep the era when entering or copying historical Japanese dates.
+
+## Native digits for dates and times
+
+Set `UseNativeDigits="True"` to display digits from the effective culture's `NumberFormat.NativeDigits`. The default is **`false`**, so Latin digits are not replaced.
+
+The property is available on `PersianCalendar`, `PersianDatePicker`, `PersianCalendarWithClock`, `PersianDateTimePicker`, `Clock`, and `ClockPicker`.
+
+```xml
+<pdtt:PersianCalendar CustomCultureName="fa-IR" UseNativeDigits="True" />
+<pdtt:PersianDatePicker CustomCultureName="fa-IR" UseNativeDigits="True" />
+<pdtt:Clock CustomCultureName="fa-IR" UseNativeDigits="True" />
+<pdtt:ClockPicker CustomCultureName="fa-IR"
+                  UseNativeDigits="True"
+                  TimeFormat="HH:mm" />
+
+<pdtt:PersianCalendarWithClock CustomCultureName="fa-IR" UseNativeDigits="True" />
+<pdtt:PersianDateTimePicker CustomCultureName="fa-IR" UseNativeDigits="True" />
+```
+
+These examples use culture defaults. For explicit calendar selection, assign the configured `CustomCulture` as shown above, then enable the option:
+
+```csharp
+datePicker.CustomCulture = hebrew;
+datePicker.UseNativeDigits = true;
+
+// Restore Latin digit display without changing the selected value.
+datePicker.UseNativeDigits = false;
+```
+
+The setting covers day numbers, calendar headings, year/decade labels, date fields, clock dial numbers, and formatted time text. Composite controls forward the culture and digit option to their nested calendar and clock; `ClockPicker` also applies them to its popup clock. `Clock` and `ClockPicker` inherit `CustomCulture`, `CustomCultureName`, and `UseNativeDigits` from `ClockBase`.
+
+- Toggling digit display does not change the selected date/time or raise a selection-change event by itself.
+- Native input digits are normalized before parsing. Persian, Arabic-Indic, and Latin input remain accepted; custom native digits from the assigned culture are supported too.
+- Clock calculations and dial selection continue to use numeric values rather than the localized labels.
+- Committing unchanged `ClockPicker` text preserves precision hidden by `TimeFormat`, including seconds and fractional ticks. An actual time edit uses the existing parsed-field behavior.
+- A culture's native digits may already be Latin. In that case, enabling the option produces no digit-shape change. The property uses `NativeDigits`; it does not invent a separate numeral system.
+
+Calendar culture and digit display are separate from the built-in `fa`/`en` language-resource dictionaries. Labels such as Today, Confirm, and AM/PM still use the resource and property mechanisms described below; selecting a calendar culture does not translate those resource dictionaries.
+
+## Calendar events
+
+Calendar events are optional, calculated offline, and independent of the calendar used to display a date. The feature follows the existing configuration/service/provider pattern:
+
+- `CalendarEventConfiguration.Configure(...)`, `.Services`, and `.Reset()` in the root namespace.
+- `CalendarEventConfigurationOptions.EventProvider` for replacing the implementation.
+- `ICalendarEventProvider` in `PersianDateTimeWPFTools.Abstractions`.
+- `CalendarEventDefinition`, rules, and occurrences in `PersianDateTimeWPFTools.Events`.
+- Default providers in `PersianDateTimeWPFTools.Services.CalendarEvents`.
+- `PersianDateTimeWPFTools.Providers.CalendarEventProvider.Current` as a provider facade.
+
+### Enable the Iranian preset
+
+Configure the data source, then opt in on the date controls that should display it:
+
+```csharp
+using PersianDateTimeWPFTools;
+using PersianDateTimeWPFTools.Services.CalendarEvents;
+
+CalendarEventConfiguration.Configure(options =>
+{
+    options.EventProvider = new IranianCalendarEventProvider();
+});
+```
+
+```xml
+<pdtt:PersianCalendar ShowCalendarEvents="True" />
+<pdtt:PersianDatePicker ShowCalendarEvents="True" />
+<pdtt:PersianCalendarWithClock ShowCalendarEvents="True" />
+<pdtt:PersianDateTimePicker ShowCalendarEvents="True" />
+```
+
+Use the package's existing `pdtt` XML namespace. `ShowCalendarEvents` defaults to `false`. The global default provider is empty: no region is assumed and there are no provider queries while the feature is disabled.
+
+The included Iranian starter set has 41 recurring occasions. Persian dates use `PersianCalendar`; lunar dates use `HijriCalendar { HijriAdjustment = 0 }` by default. Definitions repeat across years without annual date files, network access, or a new package version. Titles and month/day definitions are editable by copying the preset below. This is calculated event display, not an automatic change to official holiday or working-day policies.
+
+To use a different lunar calculation for the preset:
+
+```csharp
+using System.Globalization;
+
+CalendarEventConfiguration.Configure(options =>
+{
+    options.EventProvider = new IranianCalendarEventProvider(
+        new HijriCalendar { HijriAdjustment = 1 });
+    // Alternatively: new IranianCalendarEventProvider(new UmAlQuraCalendar())
+});
+```
+
+### Define your own events
+
+```csharp
+using System;
+using System.Globalization;
+using PersianDateTimeWPFTools.Events;
+using PersianDateTimeWPFTools.Services.CalendarEvents;
+
+var definitions = new[]
+{
+    new CalendarEventDefinition("my.nowruz", "Nowruz",
+        new AnnualCalendarEventRule(new System.Globalization.PersianCalendar(), 1, 1)),
+    new CalendarEventDefinition("my.ashura", "Ashura",
+        new AnnualCalendarEventRule(new HijriCalendar { HijriAdjustment = 0 }, 1, 10)),
+    new CalendarEventDefinition("my.meeting", "Personal meeting",
+        new FixedCalendarEventRule(new DateTime(2026, 3, 21)))
+};
+
+CalendarEventConfiguration.Configure(options =>
+    options.EventProvider = new RuleBasedCalendarEventProvider(definitions));
+```
+
+An annual rule takes **calendar, month, day**. Built-in annual rules support Persian, Gregorian, Hijri, and UmAlQura source calendars. The calendar is cloned when the rule is constructed; subsequent changes to the caller's calendar do not change existing rules.
+
+Events from all these source calendars can be displayed on any of the eight supported display calendars. Japanese, Hebrew, Buddhist, and Taiwan display does not require annual rules in those calendars. For other recurrence systems, implement `CalendarEventRule` or supply a custom `ICalendarEventProvider`.
+
+`FixedCalendarEventRule` is a one-date event. Event dates are date-only: time-of-day and time-zone conversion are outside this API.
+
+Invalid annual dates are skipped by default, for example February 29 in a common year or Esfand 30 in a non-leap Persian year. Clamping must be explicit:
+
+```csharp
+var rule = new AnnualCalendarEventRule(new GregorianCalendar(), 2, 29,
+    InvalidCalendarEventDateBehavior.ClampToLastDay);
+```
+
+The preset uses explicit clamping for occasions defined at the end of a lunar month. No silent adjustment is applied to ordinary annual rules. Impossible month/day definitions are rejected unless clamping is requested.
+
+### Edit or remove predefined occasions
+
+Definitions are immutable snapshots with stable, case-sensitive IDs. Copy the set to customize it; the preset and other controls are not mutated:
+
+```csharp
+using System.Linq;
+
+var definitions = IranianCalendarEventProvider.CreateDefaultEvents()
+    .Where(e => e.Id != "ir.lunar.ashura")
+    .ToList();
+
+definitions.Add(new CalendarEventDefinition(
+    "ir.lunar.ashura", "My Ashura title",
+    new AnnualCalendarEventRule(new HijriCalendar { HijriAdjustment = 0 }, 1, 10)));
+
+CalendarEventConfiguration.Configure(options =>
+    options.EventProvider = new RuleBasedCalendarEventProvider(definitions));
+```
+
+Inspect `CreateDefaultEvents()` or the provider's `Events` property to discover IDs. IDs must be unique within a `RuleBasedCalendarEventProvider`. Replacing a title does not require changing the ID. Definitions can also be replaced with fixed-date or custom rules.
+
+### Query without a WPF control
+
+```csharp
+var services = CalendarEventConfiguration.Services;
+var todayEvents = services.GetEvents(DateTime.Today);
+var monthEvents = services.GetEvents(
+    new DateTime(2026, 3, 1), new DateTime(2026, 4, 1));
+```
+
+Ranges are start-inclusive and end-exclusive. Start is normalized to its date; the exclusive end must be midnight. `DateTime.MaxValue` is a special final boundary so that `GetEvents(DateTime.MaxValue.Date)` is supported. All occurrences contain a date and their definition, ID, and title. Multiple events on one date are retained and ordered by descending `Priority`, then ordinal ID.
+
+Custom providers implement the same range contract and must be safe for concurrent reads. Their `GetEvents` method is synchronous; load external data before supplying it to the display path. The built-in providers do not perform I/O.
+
+`Configure` publishes a new service snapshot; loaded calendars refresh on their UI dispatcher. Hidden popup calendars refresh when loaded. `Reset()` returns to the empty provider and refreshes loaded calendars. For a custom provider whose internal data changes without a configuration update, call `RefreshCalendarEvents()` on the relevant date control from its UI thread.
+
+### Tooltip and event highlight
+
+Existing `DayMetadata` objects and legacy indicator APIs remain available. When events are enabled:
+
+- Existing tooltip content appears first, followed by the day's event titles.
+- A `CalendarDayInfo.ToolTipTemplate` applies to the original tooltip content, not to the event list. The legacy `DayToolTipTemplate` is also honored during composition.
+- Existing user indicators remain independent of the new event highlight.
+- Events do not alter `SelectedDate`, `SelectedDateTime`, blackout dates, working-day services, or enabled state.
+- Disabled-day tooltip behavior continues to follow `CalendarDayInfo.ShowToolTipWhenDisabled`.
+
+Arbitrary tooltip data and templates are supported. An explicit `ToolTip` object's body is temporarily presented inside the combined tooltip while open and restored when it closes; the metadata dictionary and original tooltip reference are not replaced. Application-specific tooltip subclasses with custom opening behavior should be tested with composition or displayed through a custom event template.
+
+| Property on the four date controls | Default | Purpose |
+|---|---|---|
+| `ShowCalendarEvents` | `false` | Enable event lookup and presentation |
+| `ShowCalendarEventToolTips` | `true` | Append events to the existing tooltip |
+| `ShowCalendarEventHighlights` | `true` | Show the independent layer behind the day number |
+| `CalendarEventHighlightStyle` | `null` | Optional style targeting `Border` |
+| `CalendarEventTemplate` | `null` | Optional tooltip item template for each `CalendarEventOccurrence` |
+
+The two presentation switches have an effect only while `ShowCalendarEvents` is enabled.
+
+```xml
+<pdtt:PersianCalendar ShowCalendarEvents="True">
+    <pdtt:PersianCalendar.CalendarEventHighlightStyle>
+        <Style TargetType="Border">
+            <Setter Property="Background" Value="#182196F3" />
+            <Setter Property="CornerRadius" Value="5" />
+            <Setter Property="Margin" Value="3" />
+        </Style>
+    </pdtt:PersianCalendar.CalendarEventHighlightStyle>
+    <pdtt:PersianCalendar.CalendarEventTemplate>
+        <DataTemplate>
+            <TextBlock Text="{Binding Title}" TextWrapping="Wrap" />
+        </DataTemplate>
+    </pdtt:PersianCalendar.CalendarEventTemplate>
+</pdtt:PersianCalendar>
+```
+
+All five built-in themes have the event layer between their backgrounds and day text. Existing custom day-button styles are not replaced. A fully custom day-button `ControlTemplate` must add its own layer or use the attached state:
+
+- `CalendarDayButtonExtensions.CalendarEvents`: the day's occurrence list.
+- `CalendarDayButtonExtensions.ShowCalendarEventHighlight`: whether the built-in highlight should be shown.
+- `CalendarDayButtonExtensions.CalendarEventHighlightStyle`: the selected highlight style.
+
+No legacy API is marked obsolete by this feature.
+
 ## ClockPicker
 
 `ClockPicker` combines an editable time field with the existing `Clock` in a popup. It derives from `ClockBase` and keeps the same `DateTime? SelectedTime`, `DateTime DisplayTime`, `TimeFormat`, `SelectedTimeChanged` and `Confirmed` contracts.
@@ -49,7 +366,7 @@ Use a `DateTime?` view-model property; selection binds two-way by default. The c
 - Clock interactions update the selection immediately. Escape restores the value captured on opening; closing by clicking outside keeps the current value.
 - The confirmation button or Enter in the popup confirms the displayed time and closes it. `ShowConfirmButton="False"` hides the footer.
 - Empty text clears the selection. Invalid text raises `TimeValidationError` and restores the previous formatted value.
-- Supported formats include `HH:mm`, `HH:mm:ss`, `hh:mm tt`, `HH:mm:ss.fff`, `t` and `T`. Formatting/parsing use `CultureInfo.CurrentCulture`; Persian and Arabic-Indic digits are accepted. Date-bearing formats are rejected.
+- Supported formats include `HH:mm`, `HH:mm:ss`, `hh:mm tt`, `HH:mm:ss.fff`, `t` and `T`. Formatting/parsing use the effective culture selected by `CustomCulture`, `CustomCultureName`, or the culture fallback. Persian and Arabic-Indic input digits are accepted; `UseNativeDigits` enables localized digit display. Date-bearing formats are rejected.
 - `IsReadOnly`, `ClockStyle`, `ConfirmButtonContent` and `Watermark` support customization. Explicit styles keep WPF's normal precedence.
 - F4 or Alt+Down toggles the popup. Escape cancels popup changes; Tab continues focus navigation.
 - UI Automation Value and ExpandCollapse patterns are supported.
@@ -194,7 +511,7 @@ public partial class App : Application
 
 Constructing `InitResources` alone does not modify `Application.Resources`. Calling `new InitResources().ChangeLanguage("fa")` without merging that instance therefore does not change the application's controls. Language changes replace only the language dictionary owned by that instance.
 
-Language resources supply labels such as AM, PM, Today and Confirm. They are separate from `CustomCulture` and `CustomCultureName`, which control the calendar's culture and date presentation. Change those control properties separately when required.
+Language resources supply labels such as AM, PM, Today and Confirm. They are separate from `CustomCulture` and `CustomCultureName`, which configure date/time presentation and, for date controls, the calendar. Change those control properties separately when required.
 
 ### Custom language dictionaries
 
@@ -649,7 +966,6 @@ var date = new DateTime(2026, 10, 22, 15, 30, 45);
 
 
 ## Controls
-- Clock
 
 ![IMAGE_DESCRIPTION](https://raw.githubusercontent.com/Behnam2064/PersianDateTimeWPFTools.doc/refs/heads/main/clock.png)
 - PersianCalendar
@@ -669,18 +985,7 @@ var date = new DateTime(2026, 10, 22, 15, 30, 45);
 editable time field with a popup clock; see the ClockPicker section above.
 ![IMAGE_DESCRIPTION](https://raw.githubusercontent.com/Behnam2064/PersianDateTimeWPFTools.doc/refs/heads/main/cpdl.png)
 
-You can manually change the Culture of the control using the following code in XAML or C#.
-
-**XAML**
-```
-CustomCultureName="fa-IR"
-```
-
-**C#**
-```
-pcwc1.CustomCulture = CultureInfo.CreateSpecificCulture("en-US");
-```
-If you do not select Culture, it will be automatically selected based on the software's Culture.
+For calendar selection and culture configuration, see [Supported calendars](#supported-calendars). Use `CustomCultureName` for a culture's default calendar, or assign a configured `CustomCulture` to select a specific calendar. For localized date and clock digits, see [Native digits for dates and times](#native-digits-for-dates-and-times).
 
 ## Ability to write custom styles for all controls
 ![IMAGE_DESCRIPTION](https://raw.githubusercontent.com/Behnam2064/PersianDateTimeWPFTools.doc/refs/heads/main/Persian-calendar-Custom-Style.png)
@@ -689,8 +994,14 @@ If you do not select Culture, it will be automatically selected based on the sof
 ## Dependency Properties and Features
 | Name        | Description           | Default  |
 | :------------- |:-------------| :-----|
-| CustomCulture      | Selecting a different culture than the current software culture | Based on the current software culture |
-| CustomCultureName     | Choosing a culture name that is different from the current software culture (such as fa-IR or en-US)      |   Based on the current software culture |
+| CustomCulture | A configured `CultureInfo`; its `DateTimeFormat.Calendar` selects the date calendar | Resolved from `Language` or the current culture |
+| CustomCultureName | Selects a culture by name and uses its default calendar; use `CustomCulture` for an explicit calendar | Resolved from `Language` or the current culture |
+| UseNativeDigits | Display culture-native digits in date and time controls | `false` |
+| ShowCalendarEvents | Enable configured event lookup and display on date controls | `false` |
+| ShowCalendarEventToolTips | Append events after existing tooltip content | `true` |
+| ShowCalendarEventHighlights | Display a separate layer behind event-day numbers | `true` |
+| CalendarEventHighlightStyle | Optional event-layer style targeting `Border` | `null` |
+| CalendarEventTemplate | Tooltip item template for `CalendarEventOccurrence` | `null` |
 | AllowSelectBlackedOutDay | Selectable holidays      |    False |
 | ShowTodayButton | Show a button to move to the current day   |    False |
 | ShowConfirmButton | Show a button to display confirm button   |    False |
@@ -698,7 +1009,7 @@ If you do not select Culture, it will be automatically selected based on the sof
 | DisplayDateStart | Start displaying the date   |    ? |
 | DisplayDateEnd | End of displaying date   |    ? |
 | DisplayMode | Date display type (like Month,Year,Decade)   |    Month |
-| FirstDayOfWeek | First day of the week  |    Sunday |
+| FirstDayOfWeek | First day of the week; can be explicitly overridden | Effective culture's first day of the week |
 | SelectionMode | Type of selection  |    SingleDate |
 | IsTodayHighlighted | Show current day as highlights  |    True |
 | ✨ DayMetadata | Introduce DayMetadata API for unified per-day customization such as Tooltip, DayIndicators, DayIndicatorStyle, etc.  |     |
@@ -962,3 +1273,6 @@ bool expiredAgainstClock = deadline.HasExpired();
 `PersianDateTime` is a static facade; parsing returns `System.DateTime` and `Now` returns an immutable `PersianDateTimeParts` snapshot. `Now` uses one configured service snapshot and reads the configured clock once. Default clock time is local. The date-only text does not discard the captured time or `Kind`, and does not read later configuration changes.
 
 `IsBetween` uses `[startInclusive, endExclusive)`, matching `PersianDateRange.Contains`; equal boundaries form an empty interval and reversed boundaries throw. Use the existing `Contains`, not `IsContains`, on a range. `HasExpired` is true at the deadline (`referenceTime >= deadline`). Comparisons retain tick precision, do not convert time zones and require inputs on the same time basis. For a UTC deadline, pass an explicit UTC reference time. The overload without a reference reads `ClockProvider.Current.Now` once.
+
+
+
