@@ -4,16 +4,18 @@
 ![IMAGE_DESCRIPTION](https://raw.githubusercontent.com/Behnam2064/PersianDateTimeWPFTools.doc/refs/heads/main/all-suppored-calendar.png)
 - A free WPF calendar library supporting Persian, Gregorian, Hijri, UmAlQura, Hebrew, Thai Buddhist, Japanese, and Taiwan calendars.
 - You can write any style you like for the controls.
-- Language change support and other resources
+- Seven built-in UI translations, custom language resources, and runtime theme switching.
 
 ## Quick start
+
+#### Please read the [link](http://github.com/Behnam2064/PersianDateTimeWPFTools.Doc#persian-calendar) for the latest update.
 
 Install the package in a WPF application:
 
 ```shell
 dotnet add package PersianDateTimeWPFTools
 ```
-Add the ResourceDictionary library to your application:
+Optionally merge `InitResources` for named styles, an initial theme and local culture-based language defaults. Default control styles load automatically; static `SetTheme` and language selection APIs work without this merge:
 ```xml
 <Application
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -198,7 +200,7 @@ The setting covers day numbers, calendar headings, year/decade labels, date fiel
 - Committing unchanged `ClockPicker` text preserves precision hidden by `TimeFormat`, including seconds and fractional ticks. An actual time edit uses the existing parsed-field behavior.
 - A culture's native digits may already be Latin. In that case, enabling the option produces no digit-shape change. The property uses `NativeDigits`; it does not invent a separate numeral system.
 
-Calendar culture and digit display are separate from the built-in `fa`/`en` language-resource dictionaries. Labels such as Today, Confirm, and AM/PM still use the resource and property mechanisms described below; selecting a calendar culture does not translate those resource dictionaries.
+Calendar culture and digit display are separate from the seven built-in UI translations. Labels such as Today, Confirm, and AM/PM use the language-resource APIs described in [Control language resources](#control-language-resources); selecting a calendar culture does not automatically change those labels.
 
 ## Calendar events
 
@@ -361,7 +363,7 @@ The two presentation switches have an effect only while `ShowCalendarEvents` is 
 </pdtt:PersianCalendar>
 ```
 
-All five built-in themes have the event layer between their backgrounds and day text. Existing custom day-button styles are not replaced. A fully custom day-button `ControlTemplate` must add its own layer or use the attached state:
+All seven built-in themes have the event layer between their backgrounds and day text. Existing custom day-button styles are not replaced. A fully custom day-button `ControlTemplate` must add its own layer or use the attached state:
 
 - `CalendarDayButtonExtensions.CalendarEvents`: the day's occurrence list.
 - `CalendarDayButtonExtensions.ShowCalendarEventHighlight`: whether the built-in highlight should be shown.
@@ -379,7 +381,7 @@ No legacy API is marked obsolete by this feature.
                   Watermark="Select a time" />
 ```
 
-Use a `DateTime?` view-model property; selection binds two-way by default. The control edits the time of day while preserving the selected/displayed date and `Kind`. Default styles work without initialization, and all five existing themes are supported.
+Use a `DateTime?` view-model property; selection binds two-way by default. The control edits the time of day while preserving the selected/displayed date and `Kind`. Default styles work without initialization, and all seven built-in themes are supported.
 
 - Type a time and press Enter, or open the popup and use the clock. Seconds are optional: `14:30` is accepted with the default `HH:mm:ss` format and displayed as `14:30:00`.
 - Clock interactions update the selection immediately. Escape restores the value captured on opening; closing by clicking outside keeps the current value.
@@ -392,7 +394,7 @@ Use a `DateTime?` view-model property; selection binds two-way by default. The c
 
 `Text` validates immediately when set programmatically; editor typing is committed on Enter, focus loss or opening the popup. Text that already matches the formatted selection retains hidden precision; changed text uses the parsed fields (for example, editing an `HH:mm` value resets seconds to zero).
 
-For localized AM/PM and confirmation labels, change the language on your merged `InitResources` instance. New `ClockBase.AmDesignator` and `PmDesignator` properties provide English fallbacks when no language resources are merged. The default confirmation label is also available without initialization.
+For localized AM/PM and confirmation labels, call `InitResources.SetLanguage`, `SetLanguageFromCulture` or `SetLanguageResources`; see [Control language resources](#control-language-resources). `ClockBase.AmDesignator` and `PmDesignator` provide English fallbacks when no language resources are applied. The default confirmation label is also available without initialization.
 
 ## Themes and resources
 
@@ -421,10 +423,20 @@ Replace `MyApp.App` with your application's class name. Omit `SelectedTheme` to 
 | Theme | Enum value | Theme class |
 |---|---|---|
 | Default | `BaseThemeName.Default` | `ThemeDefault` |
+| Atelier Light | `BaseThemeName.LightAtelier` | `ThemeLightAtelier` |
+| Atelier Dark | `BaseThemeName.DarkAtelier` | `ThemeDarkAtelier` |
 | Dark Modern | `BaseThemeName.DarkModern1` | `ThemeDarkModern1` |
 | Light Modern | `BaseThemeName.LightModern1` | `ThemeLightModern1` |
 | Dark Classic | `BaseThemeName.DarkClassic` | `ThemeDarkClassic` |
 | Light Classic | `BaseThemeName.LightClassic` | `ThemeLightClassic` |
+
+### Automatic default resources
+
+`Themes/Generic.xaml` loads the six default control styles and their dependencies without modifying `Application.Resources`. You do not need to merge `InitResources` or call `SetTheme` to get complete default visuals. Named optional themes are loaded through the explicit resource/theme APIs.
+
+The default palette, typography, editor spacing, icon font and focus/context-menu resources are supplied in `DefaultThemeResources.xaml` and `DefaultThemePalette.xaml`. Default theme styles own fallback resources in their style resource scope, following WPF resource lookup. Customize public properties such as `Background`, `Foreground`, `BorderBrush` and `Padding`, or place token overrides in the control's `Resources` when overriding these fallbacks. Application-level string token overrides do not outrank resources in a closer style scope.
+
+Translations are deliberately excluded from these fallback dictionaries so `SetLanguage` and `SetLanguageResources` can update controls after they are displayed. English fallback labels remain usable without initialization. `InitResources` is still available for named styles, an initial selected theme and local culture-based language defaults.
 
 ### Switch themes at runtime
 
@@ -468,6 +480,19 @@ For example, this explicit style preserves the default template while customizin
 
 The example's style remains in place during theme changes. For customization that follows the active theme, prefer setting individual control properties instead of assigning a fixed `Style`.
 
+### Atelier: a different layout (✨New Theme)
+![IMAGE_DESCRIPTION](https://raw.githubusercontent.com/Behnam2064/PersianDateTimeWPFTools.doc/refs/heads/main/AtelierTheme.png)
+Atelier adds paired LightAtelier and DarkAtelier styles for all six controls. The calendar uses a navigation rail beside the date grid; the clock places large hour/minute fields beside its dial. Date/time composites stack the calendar over the clock, and picker buttons move to the leading edge.
+
+```csharp
+InitResources.SetTheme(new ThemeLightAtelier());
+// Or: InitResources.SetTheme(new ThemeDarkAtelier());
+```
+
+For XAML initialization, use `<pdtt:InitResources SelectedTheme="LightAtelier" />`. For a fixed style, use a named resource such as `PersianCalendarDarkAtelier` after merging InitResources; explicitly assigned styles remain fixed during global theme changes.
+
+Allow at least 420 device-independent pixels for the calendar. The stacked date/time popup is taller than the existing side-by-side themes; leave room for it in the host window. The split clock shows 24-hour hours, minutes and seconds independently of TimeFormat separators; its hidden formatted value and the time picker's editor continue to use their own TimeFormat. Native digits, translations, right-to-left calendar layout, Hebrew leap-year month rows, event highlights and metadata remain supported. Clock layout stays left-to-right so the dial and numeric fields retain their spatial order.
+
 ### Theme notifications
 
 ```csharp
@@ -489,26 +514,37 @@ void HandleThemeChanged(object sender, ThemeChangedEventArgs e)
 
 ## Control language resources
 
-Built-in language codes are `fa` and `en`. When constructed, `InitResources` selects Persian if `CultureInfo.CurrentUICulture.TwoLetterISOLanguageName` is `fa`; otherwise it selects English. Without `InitResources`, the default resource fallback is English.
+The library includes seven UI translations:
 
-To change the language at runtime, update the same instance that is merged into the application's resources. With the `App.xaml` example above:
+| Language | Code | Example culture |
+|---|---|---|
+| English | `en` | `en-US` |
+| Persian | `fa` | `fa-IR` |
+| Arabic | `ar` | `ar-SA` |
+| Hebrew | `he` | `he-IL` |
+| Thai | `th` | `th-TH` |
+| Japanese | `ja` | `ja-JP` |
+| Traditional Chinese | `zh-Hant` | `zh-TW`, `zh-HK` |
+
+These resources supply four UI labels: `AmText`, `PmText`, `ConfirmText`, and `TodayText`. Calendar selection, month/day names, date/time formatting and native digits are controlled separately by the effective culture and the control's properties. Choosing a calendar culture does not automatically change the library's label resources. Language selection does not change `CurrentCulture`, `CurrentUICulture` or `FlowDirection`.
+
+### Select a language explicitly
+
+Use the static API on the application's UI thread. A WPF `Application` must exist; no `InitResources` instance needs to be created or merged first:
 
 ```csharp
-using System.Linq;
-using System.Windows;
 using PersianDateTimeWPFTools.Tools;
 
-var calendarResources = Application.Current.Resources.MergedDictionaries
-    .OfType<InitResources>()
-    .Single();
-
-calendarResources.ChangeLanguage("fa");
-// Or: calendarResources.ChangeLanguage("en");
+InitResources.SetLanguage("fa");
+// Other examples:
+// InitResources.SetLanguage("ar");
+// InitResources.SetLanguage("ja-JP"); // Resolves to ja.
+// InitResources.SetLanguage("zh-Hant");
 ```
 
-This example assumes exactly one `InitResources` instance is merged directly into `Application.Resources`. Keep a reference to the instance yourself if your resource structure is different.
+Language codes are case-insensitive. Regional culture names resolve through their culture parents. An unsupported explicit selection throws `ArgumentException` without changing the active language. Existing consumers of these labels through `DynamicResource` update when the selected language changes. Switching themes preserves the selected language.
 
-For initialization entirely in code, create and merge the instance before using it:
+For initialization in code:
 
 ```csharp
 using System.Windows;
@@ -518,23 +554,35 @@ public partial class App : Application
 {
     protected override void OnStartup(StartupEventArgs e)
     {
+        InitResources.SetLanguage("fa");
         base.OnStartup(e);
-
-        // Use this approach when InitResources is not already merged in App.xaml.
-        var calendarResources = new InitResources();
-        calendarResources.ChangeLanguage("fa");
-        Resources.MergedDictionaries.Add(calendarResources);
     }
 }
 ```
 
-Constructing `InitResources` alone does not modify `Application.Resources`. Calling `new InitResources().ChangeLanguage("fa")` without merging that instance therefore does not change the application's controls. Language changes replace only the language dictionary owned by that instance.
+### Select from Culture
 
-Language resources supply labels such as AM, PM, Today and Confirm. They are separate from `CustomCulture` and `CustomCultureName`, which configure date/time presentation and, for date controls, the calendar. Change those control properties separately when required.
+To select once from `CultureInfo.CurrentUICulture`, or from an explicit culture:
+
+```csharp
+using System.Globalization;
+using PersianDateTimeWPFTools.Tools;
+
+InitResources.SetLanguageFromCulture();
+
+// Alternatively, choose a culture explicitly.
+InitResources.SetLanguageFromCulture(new CultureInfo("he-IL"));
+```
+
+Supported cultures resolve to the translations above; unsupported cultures fall back to English. This is a one-time selection, not a subscription to later culture changes, and does not search for external translation files. Set `CurrentUICulture` before calling the parameterless method if it should use your application's UI culture.
+
+Traditional Chinese cultures such as `zh-TW`, `zh-HK` and `zh-MO` resolve through `zh-Hant`. Simplified Chinese (`zh-Hans`, `zh-CN`) and neutral `zh` have no built-in translation and fall back to English in automatic selection. Supply custom resources to support these or other languages.
+
+When constructed, `InitResources` uses the same culture resolver for its local language defaults. Constructing a dictionary alone does not modify `Application.Resources`; merge it if you want to use those local defaults. An explicit static language selection takes precedence over instance defaults. Without a merged dictionary or a static selection, the default resource fallback is English.
 
 ### Custom language dictionaries
 
-Create a WPF resource dictionary with the same keys as the built-in language resources. For example, add `Lang.es.xaml` to your application with build action `Page`:
+Create a WPF resource dictionary with the supported keys. For example, add `Lang.es.xaml` to your application with build action `Page`:
 
 ```xml
 <ResourceDictionary
@@ -548,21 +596,53 @@ Create a WPF resource dictionary with the same keys as the built-in language res
 </ResourceDictionary>
 ```
 
-Load it through the merged instance, replacing `MyApp` with your application's assembly name:
+Load it directly, replacing `MyApp` with the assembly containing the dictionary:
 
 ```csharp
-calendarResources.ChangeLanguage(
-    "es",
-    "pack://application:,,,/MyApp;component/Lang.es.xaml");
+using System;
+using PersianDateTimeWPFTools.Tools;
+
+InitResources.SetLanguageResources(new Uri(
+    "pack://application:,,,/MyApp;component/Lang.es.xaml",
+    UriKind.Absolute));
 ```
 
-A language other than `fa` or `en` requires `lanAddress`. Run language changes on the application UI thread. Switching themes does not reset the selected language dictionary.
+The overload accepting `ResourceDictionary` is useful for translations created in code:
+
+```csharp
+using System.Windows;
+using PersianDateTimeWPFTools.Tools;
+
+InitResources.SetLanguageResources(new ResourceDictionary
+{
+    ["ConfirmText"] = "Confirmar",
+    ["TodayText"] = "Hoy"
+});
+```
+
+Only the four supported labels are copied. Missing labels fall back to English, unrelated keys are ignored, and supplied values must be strings. Reapply the dictionary after changing its contents; it is not observed for later edits. Loading or validation failures preserve the current language. Run both overloads on the application's UI thread.
+
+Direct entries in `Application.Resources` and resources closer to a control retain normal WPF precedence over the library's merged resources. An explicit language selection survives replacement of `Application.Resources` when the replacement includes `InitResources`; otherwise, apply the static language API again after replacing the resources.
+
+### Migrating from ChangeLanguage
+
+`ChangeLanguage` is obsolete with a compiler warning and retains its existing local-dictionary behavior. Replace global language selection with the static APIs:
+
+```csharp
+// Built-in language:
+InitResources.SetLanguage("fa");
+
+// Custom dictionary: use SetLanguageResources(new Uri(...)).
+// Current UI culture: use SetLanguageFromCulture().
+```
+
+The static APIs remove the need to find or keep a merged instance for global language selection. The obsolete instance method does not attach an unmerged dictionary to the application, and its local language does not override an explicit global selection.
 
 ## Migration: resources and theming
 
 - Default styles now load automatically. Remove initialization used only to make the default controls visible.
-- Keep one merged `InitResources` instance if you need language selection or named styles. Do not depend on its constructor to modify application resources.
-- Replace language changes on temporary, unmerged instances with changes on the merged instance.
+- Keep one merged `InitResources` instance if you need named styles or local culture-based language defaults. Static theme and language selection work without merging an instance. Do not depend on the constructor to modify application resources.
+- `ChangeLanguage` is obsolete. Use `SetLanguage` for a built-in translation, `SetLanguageFromCulture` for one-time culture selection, or `SetLanguageResources` for a custom dictionary.
 - `OnTheme` is now an event: subscribe with `+=` and unsubscribe with `-=`. Direct assignment and invocation from consumer code are no longer supported; the sender is now `null`.
 - `ThemeChangedEventArgs.OldTheme` now contains the previous theme.
 - `InitResources(bool noInit)` is obsolete. Use the parameterless constructor.
