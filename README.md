@@ -7,9 +7,6 @@
 - Seven built-in UI translations, custom language resources, and runtime theme switching.
 
 ## Quick start
-
-#### Please read the [link](http://github.com/Behnam2064/PersianDateTimeWPFTools.Doc#persian-calendar) for the latest update.
-
 Install the package in a WPF application:
 
 ```shell
@@ -204,58 +201,113 @@ Calendar culture and digit display are separate from the seven built-in UI trans
 
 ## Calendar events
 
-Calendar events are optional, calculated offline, and independent of the calendar used to display a date. The feature follows the existing configuration/service/provider pattern:
+Add a single-date event directly to a control, or use the optional provider API for recurring and shared occasions. Event dates are independent of the calendar used for display.
 
-- `CalendarEventConfiguration.Configure(...)`, `.Services`, and `.Reset()` in the root namespace.
-- `CalendarEventConfigurationOptions.EventProvider` for replacing the implementation.
-- `ICalendarEventProvider` in `PersianDateTimeWPFTools.Abstractions`.
-- `CalendarEventDefinition`, rules, and occurrences in `PersianDateTimeWPFTools.Events`.
-- Default providers in `PersianDateTimeWPFTools.Services.CalendarEvents`.
-- `PersianDateTimeWPFTools.Providers.CalendarEventProvider.Current` as a provider facade.
+### Add an event without global configuration
 
-### Enable the Iranian preset
+Enable event display once on the control:
 
-Configure the data source, then opt in on the date controls that should display it:
+```xml
+<pdtt:PersianCalendar
+    x:Name="calendar"
+    ShowCalendarEvents="True" />
+```
+
+Then add a local event:
+
+```csharp
+using System;
+using PersianDateTimeWPFTools.Events;
+
+calendar.CalendarEvents.Add(new CalendarEvent
+{
+    Date = new DateTime(2026, 11, 7),
+    Title = "Customer meeting"
+});
+
+// Equivalent shorter form:
+calendar.CalendarEvents.Add(
+    new CalendarEvent(new DateTime(2026, 11, 8), "Follow-up"));
+```
+
+No `CalendarEventConfiguration`, provider or rule is required. `CalendarEvents` is available on `PersianCalendar`, `PersianDatePicker`, `PersianDateTimePicker` and `PersianCalendarWithClock`. Each control starts with its own `ObservableCollection<CalendarEvent>` exposed through `IList<CalendarEvent>`. Wrappers forward the same collection to their inner calendar.
+
+`ShowCalendarEvents` retains its existing default of `false` and controls both local and configured events. Adding an event does not change that property or replace its binding.
+
+### XAML
+
+The package's existing XML namespace also includes `CalendarEvent`:
+
+```xml
+<pdtt:PersianDatePicker
+    xmlns:pdtt="https://github.com/Behnam2064/PersianDateTimeWPFTools"
+    ShowCalendarEvents="True">
+    <pdtt:PersianDatePicker.CalendarEvents>
+        <pdtt:CalendarEvent
+            Date="2026-11-07"
+            Title="Customer meeting" />
+    </pdtt:PersianDatePicker.CalendarEvents>
+</pdtt:PersianDatePicker>
+```
+
+### MVVM and live updates
+
+```csharp
+using System.Collections.ObjectModel;
+using PersianDateTimeWPFTools.Events;
+
+public ObservableCollection<CalendarEvent> Meetings { get; }
+    = new ObservableCollection<CalendarEvent>();
+```
+
+```xml
+<pdtt:PersianDateTimePicker
+    ShowCalendarEvents="True"
+    CalendarEvents="{Binding Meetings}" />
+```
+
+Add/remove/replace/clear operations on a notifying collection update the UI. Editing a `CalendarEvent`'s Date, Title, Id or Priority also updates the UI; no manual refresh is needed. Replacing the bound collection works when the view model raises PropertyChanged for its collection property. Perform collection and item edits on the UI dispatcher thread, as with other WPF-bound UI data.
+
+```csharp
+var meeting = new CalendarEvent(new DateTime(2026, 11, 7), "Meeting");
+Meetings.Add(meeting);
+meeting.Title = "Rescheduled meeting";
+meeting.Date = new DateTime(2026, 11, 8);
+Meetings.Remove(meeting);
+```
+
+A plain `List<CalendarEvent>` can be assigned, but it does not notify collection changes. After changing that list, call `RefreshCalendarEvents()`; it also discovers any newly added items. Use `ObservableCollection<CalendarEvent>` for automatic updates.
+
+Dates are Gregorian `DateTime` values identifying a day, independent of the calendar used to display it. The time portion is discarded. IDs are generated automatically; supply an existing business ID if useful. Empty/whitespace titles represent drafts and are not rendered until a title is supplied. Null entries are ignored. Higher Priority values sort first, then IDs in ordinal order.
+
+### Existing providers and recurrence
+
+The existing configuration/provider API remains available for calculated occasions, recurrence and shared application data. Local events and configured provider occurrences are combined. For the same date and ID, the first local event takes precedence over the provider occurrence; removing it reveals the provider occurrence again. Different IDs on one date remain separate events, even with the same title.
+
+Local `CalendarEvent` represents one date. Existing `CalendarEventDefinition` and `CalendarEventRule` types remain the advanced recurrence path. `CalendarEventTemplate`, `ShowCalendarEventToolTips`, `ShowCalendarEventHighlights` and `CalendarEventHighlightStyle` apply to both sources.
+
+Local collection/item edits reuse the provider's cached visible-range result. Navigation, provider configuration changes and an explicit `RefreshCalendarEvents()` can query it again.
+
+### Optional shared occasions
+
+For application-wide occasions, configure a provider and enable `ShowCalendarEvents` on the controls that should display them. Local events do not require this step.
 
 ```csharp
 using PersianDateTimeWPFTools;
 using PersianDateTimeWPFTools.Services.CalendarEvents;
 
 CalendarEventConfiguration.Configure(options =>
-{
-    options.EventProvider = new IranianCalendarEventProvider();
-});
+    options.EventProvider = new IranianCalendarEventProvider());
 ```
 
-```xml
-<pdtt:PersianCalendar ShowCalendarEvents="True" />
-<pdtt:PersianDatePicker ShowCalendarEvents="True" />
-<pdtt:PersianCalendarWithClock ShowCalendarEvents="True" />
-<pdtt:PersianDateTimePicker ShowCalendarEvents="True" />
-```
+The default provider is empty and no region is assumed. The Iranian preset supplies recurring occasions; inspect `CreateDefaultEvents()` or `Events` for the definitions included in your version. It is calculated event data, independent of official holiday and working-day policies. Custom recurrence rules can select their own source calendar, as below.
 
-Use the package's existing `pdtt` XML namespace. `ShowCalendarEvents` defaults to `false`. The global default provider is empty: no region is assumed and there are no provider queries while the feature is disabled.
-
-The included Iranian starter set has 41 recurring occasions. Persian dates use `PersianCalendar`; lunar dates use `HijriCalendar { HijriAdjustment = 0 }` by default. Definitions repeat across years without annual date files, network access, or a new package version. Titles and month/day definitions are editable by copying the preset below. This is calculated event display, not an automatic change to official holiday or working-day policies.
-
-To use a different lunar calculation for the preset:
-
-```csharp
-using System.Globalization;
-
-CalendarEventConfiguration.Configure(options =>
-{
-    options.EventProvider = new IranianCalendarEventProvider(
-        new HijriCalendar { HijriAdjustment = 1 });
-    // Alternatively: new IranianCalendarEventProvider(new UmAlQuraCalendar())
-});
-```
-
-### Define your own events
+### Define recurring or shared events with a provider
 
 ```csharp
 using System;
 using System.Globalization;
+using PersianDateTimeWPFTools;
 using PersianDateTimeWPFTools.Events;
 using PersianDateTimeWPFTools.Services.CalendarEvents;
 
@@ -286,7 +338,7 @@ var rule = new AnnualCalendarEventRule(new GregorianCalendar(), 2, 29,
     InvalidCalendarEventDateBehavior.ClampToLastDay);
 ```
 
-The preset uses explicit clamping for occasions defined at the end of a lunar month. No silent adjustment is applied to ordinary annual rules. Impossible month/day definitions are rejected unless clamping is requested.
+Clamping is explicit; no silent adjustment is applied to ordinary annual rules. Impossible month/day definitions are rejected unless clamping is requested.
 
 ### Edit or remove predefined occasions
 
@@ -296,12 +348,12 @@ Definitions are immutable snapshots with stable, case-sensitive IDs. Copy the se
 using System.Linq;
 
 var definitions = IranianCalendarEventProvider.CreateDefaultEvents()
-    .Where(e => e.Id != "ir.lunar.ashura")
+    .Where(e => e.Id != "ir.solar.nowruz-1")
     .ToList();
 
 definitions.Add(new CalendarEventDefinition(
-    "ir.lunar.ashura", "My Ashura title",
-    new AnnualCalendarEventRule(new HijriCalendar { HijriAdjustment = 0 }, 1, 10)));
+    "ir.solar.nowruz-1", "My Nowruz title",
+    new AnnualCalendarEventRule(new System.Globalization.PersianCalendar(), 1, 1)));
 
 CalendarEventConfiguration.Configure(options =>
     options.EventProvider = new RuleBasedCalendarEventProvider(definitions));
@@ -309,7 +361,9 @@ CalendarEventConfiguration.Configure(options =>
 
 Inspect `CreateDefaultEvents()` or the provider's `Events` property to discover IDs. IDs must be unique within a `RuleBasedCalendarEventProvider`. Replacing a title does not require changing the ID. Definitions can also be replaced with fixed-date or custom rules.
 
-### Query without a WPF control
+### Query configured provider events without a WPF control
+
+These queries return configured provider events. Per-control `CalendarEvents` collections are local to their controls and are not added to the global service.
 
 ```csharp
 var services = CalendarEventConfiguration.Services;
@@ -326,10 +380,10 @@ Custom providers implement the same range contract and must be safe for concurre
 
 ### Tooltip and event highlight
 
-Existing `DayMetadata` objects and legacy indicator APIs remain available. When events are enabled:
+`DayMetadata` supplies per-day tooltips and indicators. When events are enabled:
 
 - Existing tooltip content appears first, followed by the day's event titles.
-- A `CalendarDayInfo.ToolTipTemplate` applies to the original tooltip content, not to the event list. The legacy `DayToolTipTemplate` is also honored during composition.
+- A `CalendarDayInfo.ToolTipTemplate` applies to the original tooltip content, not to the event list. `DayToolTipTemplate` supplies the shared default when no per-day template is specified.
 - Existing user indicators remain independent of the new event highlight.
 - Events do not alter `SelectedDate`, `SelectedDateTime`, blackout dates, working-day services, or enabled state.
 - Disabled-day tooltip behavior continues to follow `CalendarDayInfo.ShowToolTipWhenDisabled`.
@@ -338,7 +392,8 @@ Arbitrary tooltip data and templates are supported. An explicit `ToolTip` object
 
 | Property on the four date controls | Default | Purpose |
 |---|---|---|
-| `ShowCalendarEvents` | `false` | Enable event lookup and presentation |
+| `CalendarEvents` | Independent observable collection | Local single-date events; supports binding |
+| `ShowCalendarEvents` | `false` | Enable local and provider event presentation |
 | `ShowCalendarEventToolTips` | `true` | Append events to the existing tooltip |
 | `ShowCalendarEventHighlights` | `true` | Show the independent layer behind the day number |
 | `CalendarEventHighlightStyle` | `null` | Optional style targeting `Border` |
@@ -369,7 +424,7 @@ All seven built-in themes have the event layer between their backgrounds and day
 - `CalendarDayButtonExtensions.ShowCalendarEventHighlight`: whether the built-in highlight should be shown.
 - `CalendarDayButtonExtensions.CalendarEventHighlightStyle`: the selected highlight style.
 
-No legacy API is marked obsolete by this feature.
+Use `DayMetadata` for per-day presentation. The former separate tooltip and indicator dictionaries remain compatibility APIs with non-error deprecation warnings; their usage guides have been retired.
 
 ## ClockPicker
 
@@ -423,12 +478,27 @@ Replace `MyApp.App` with your application's class name. Omit `SelectedTheme` to 
 | Theme | Enum value | Theme class |
 |---|---|---|
 | Default | `BaseThemeName.Default` | `ThemeDefault` |
-| Atelier Light | `BaseThemeName.LightAtelier` | `ThemeLightAtelier` |
-| Atelier Dark | `BaseThemeName.DarkAtelier` | `ThemeDarkAtelier` |
+| ✨ Atelier Light  | `BaseThemeName.LightAtelier` | `ThemeLightAtelier` |
+| ✨ Atelier Dark | `BaseThemeName.DarkAtelier` | `ThemeDarkAtelier` |
 | Dark Modern | `BaseThemeName.DarkModern1` | `ThemeDarkModern1` |
 | Light Modern | `BaseThemeName.LightModern1` | `ThemeLightModern1` |
 | Dark Classic | `BaseThemeName.DarkClassic` | `ThemeDarkClassic` |
 | Light Classic | `BaseThemeName.LightClassic` | `ThemeLightClassic` |
+
+### Default date-picker input layout
+
+In the Default theme, `PersianDatePicker` and `PersianDateTimePicker` share the same input template, default font size, padding and content alignment. The outer control draws the border once; the transparent inner editor and calendar button occupy separate columns inside it. `Height`, `Width`, `BorderThickness`, typography and `Padding` are forwarded without adding an inner minimum height or a second border.
+
+```xml
+<pdtt:PersianDatePicker Height="30" Padding="8,2"
+                      BorderThickness="1" Margin="0" />
+<pdtt:PersianDateTimePicker Height="30" Padding="8,2"
+                          BorderThickness="1" Margin="0" />
+```
+
+Remove margins previously used only to compensate for missing bottom borders or vertical offsets, then use the same height, font and padding on neighboring fields. Nonuniform border thickness, such as `1,1,1,3`, is supported without a negative margin. Header and description content have their own rows; allow additional height or use automatic height when displaying them. For a very small fixed height, choose padding and font size that fit its interior, as with a normal WPF TextBox.
+
+The shared template applies to the Default theme. Classic, Modern1 and Atelier retain their own layouts. A consumer style that replaces `Template` must incorporate the layout fix itself; a property-only style continues to use the corrected default template. Popup editing, selection bindings and calendar behavior use the existing control implementations.
 
 ### Automatic default resources
 
@@ -1095,12 +1165,12 @@ For calendar selection and culture configuration, see [Supported calendars](#sup
 | :------------- |:-------------| :-----|
 | CustomCulture | A configured `CultureInfo`; its `DateTimeFormat.Calendar` selects the date calendar | Resolved from `Language` or the current culture |
 | CustomCultureName | Selects a culture by name and uses its default calendar; use `CustomCulture` for an explicit calendar | Resolved from `Language` or the current culture |
-| UseNativeDigits | Display culture-native digits in date and time controls | `false` |
-| ShowCalendarEvents | Enable configured event lookup and display on date controls | `false` |
-| ShowCalendarEventToolTips | Append events after existing tooltip content | `true` |
-| ShowCalendarEventHighlights | Display a separate layer behind event-day numbers | `true` |
-| CalendarEventHighlightStyle | Optional event-layer style targeting `Border` | `null` |
-| CalendarEventTemplate | Tooltip item template for `CalendarEventOccurrence` | `null` |
+| ✨ UseNativeDigits | Display culture-native digits in date and time controls | `false` |
+| ✨ ShowCalendarEvents | Enable configured event lookup and display on date controls | `false` |
+| ✨ ShowCalendarEventToolTips | Append events after existing tooltip content | `true` |
+| ✨ ShowCalendarEventHighlights | Display a separate layer behind event-day numbers | `true` |
+| ✨ CalendarEventHighlightStyle | Optional event-layer style targeting `Border` | `null` |
+| ✨ CalendarEventTemplate | Tooltip item template for `CalendarEventOccurrence` | `null` |
 | AllowSelectBlackedOutDay | Selectable holidays      |    False |
 | ShowTodayButton | Show a button to move to the current day   |    False |
 | ShowConfirmButton | Show a button to display confirm button   |    False |
@@ -1111,220 +1181,114 @@ For calendar selection and culture configuration, see [Supported calendars](#sup
 | FirstDayOfWeek | First day of the week; can be explicitly overridden | Effective culture's first day of the week |
 | SelectionMode | Type of selection  |    SingleDate |
 | IsTodayHighlighted | Show current day as highlights  |    True |
-| ✨ DayMetadata | Introduce DayMetadata API for unified per-day customization such as Tooltip, DayIndicators, DayIndicatorStyle, etc.  |     |
-| ✨ DayToolTips | Show Tooltip for calendar days  |     |
-| ✨ DayToolTipTemplate | A template for a tooltip  |     |
-| ✨ DayIndicators | Display Indicator for calendar days  |     |
-| ✨ DayIndicatorStyle | A style for the Indicator  |     |
-| ✨ ISystemClock | A static Clock provider to replace direct DateTime usage  |  new SystemClock()  |
+| DayMetadata | Per-day tooltip, indicator, style and enabled-state configuration  |     |
+| DayToolTipTemplate | A template for a tooltip  |     |
+| DayIndicatorStyle | A style for the Indicator  |     |
+| ISystemClock | A static Clock provider to replace direct DateTime usage  |  new SystemClock()  |
 
 
 
-## ❔ What is DayMetadata?
+## DayMetadata
 
-![IMAGE_DESCRIPTION](https://raw.githubusercontent.com/Behnam2064/PersianDateTimeWPFTools.doc/refs/heads/main/dayMetadataUse.png)
+Use `DayMetadata` on `PersianCalendar`, `PersianDatePicker`, `PersianDateTimePicker` or `PersianCalendarWithClock` to configure a day's tooltip, indicator and enabled state in one place. Event data stays in `CalendarEvents`; several events can share the same day.
 
-introduce DayMetadata API for unified per-day customization
-- Added CalendarDayInfo model to describe per-day metadata
-- Introduced DayMetadata dictionary to centralize day configuration
-- Unified tooltip, indicator, and disabled-day logic under a single API
-- Ensured backward compatibility with existing DayToolTips and DayIndicators
-- Enabled tooltips to be shown on disabled days for better UX
-- Implemented virtualization-safe updates across month navigation
+![Day metadata](https://raw.githubusercontent.com/Behnam2064/PersianDateTimeWPFTools.doc/refs/heads/main/dayMetadataUse.png)
 
-## 📝 A note about the DayMetadata execution priority
-DayMetadata
+| CalendarDayInfo property | Purpose | Default |
+|---|---|---|
+| `Id` | Optional application-specific day ID | `null` |
+| `ToolTip` | Tooltip content, including arbitrary template data | `null` |
+| `ToolTipTemplate` | Per-day tooltip template; otherwise uses `DayToolTipTemplate` | `null` |
+| `HasIndicator` | Display a day indicator | `false` |
+| `IndicatorStyle` | Per-day style targeting `Ellipse`; otherwise uses `DayIndicatorStyle` | `null` |
+| `IsDisabled` | Disable the day | `false` |
+| `ShowToolTipWhenDisabled` | Allow a tooltip on a disabled day | `true` |
+| `Tag` | Optional application data | `null` |
 
-↓
+```csharp
+using System;
+using System.Collections.Generic;
+using System.Windows;
+using PersianDateTimeWPFTools.Controls;
 
-DayToolTips / DayIndicators
-
-↓
-
-Default behavior
-
-## ⚙️How to use DayMetadata?
-
-First you need to familiarize yourself with the properties of the CalendarDayInfo class.
-
-
-| Name        | Description           | Default  |
-| :------------- |:-------------| :-----|
-| ToolTip      | Show Tooltip for calendar days |  |
-| ToolTipTemplate      | A template for a tooltip. |  |
-| HasIndicator      | Display Indicator for calendar days | False |
-| IndicatorStyle      | A style for the Indicator (You can create a unique style for each day.) |  |
-| IsDisabled      | Disable specific day| False |
-| ShowToolTipWhenDisabled      | Show Tooltip for disabled days | True |
-
-C#
-
-```
-persianCalendar.DayMetadata = new Dictionary<DateTime, CalendarDayInfo>
+calendar.DayMetadata = new Dictionary<DateTime, CalendarDayInfo>
 {
-    [new DateTime(2025, 12, 29)] = new CalendarDayInfo
+    [new DateTime(2026, 11, 7)] = new CalendarDayInfo
     {
-        ToolTip = "Meeting with the marketing team",
+        ToolTip = "Bring the signed agreement",
+        HasIndicator = true
     },
-    [new DateTime(2025, 12, 31)] = new CalendarDayInfo
+    [new DateTime(2026, 11, 8)] = new CalendarDayInfo
     {
-        ToolTip = "Important meeting with the development team",
-        HasIndicator = true,
-        IndicatorStyle = Resources["DayIndicatorRedStyle"] as Style,
-    },
-    [new DateTime(2025, 12, 21)] = new CalendarDayInfo
-    {
-        ToolTip = "My love's birthday",
+        ToolTip = "Unavailable",
         HasIndicator = true,
         IsDisabled = true,
         ShowToolTipWhenDisabled = true,
-        IndicatorStyle = this.Resources["DayIndicatorGreenStyle"] as Style,
-        ToolTipTemplate = Resources["FancyDayToolTipTemplate"] as DataTemplate,
+        IndicatorStyle = (Style)Resources["RedDotIndicatorStyle"],
+        ToolTipTemplate = (DataTemplate)Resources["FancyDayToolTipTemplate"]
     }
 };
 ```
 
+Keys identify Gregorian `DateTime` dates without a time component, regardless of the display calendar. An existing metadata entry takes precedence over compatibility dictionaries, including when its indicator is false or tooltip is null.
 
-## ✨Tip 1
-The DateTime object should only contain dates.
+### Update day metadata
 
-## ✨Tip 2
-If you want to update DayMetadata you need to do something like the following
+`DayMetadata` is an `IDictionary`, and `CalendarDayInfo` does not implement change notification. Assign a new dictionary instance when updating an existing control; reassigning the same instance does not reliably trigger a refresh. Copy any existing per-day object you need to edit rather than silently modifying a shared instance.
 
-```
-var preDayMetadata = persianCalendar.DayMetadata;
+```csharp
+var updated = calendar.DayMetadata == null
+    ? new Dictionary<DateTime, CalendarDayInfo>()
+    : new Dictionary<DateTime, CalendarDayInfo>(calendar.DayMetadata);
 
-preDayMetadata.Add(DateTime.Today.AddDays(2), new CalendarDayInfo() { ToolTip = "Don't forget about renting a house.", HasIndicator = true });
-
-persianCalendar.DayMetadata = preDayMetadata;
-```
-
-💫Creating a Style for the Day Indicator
-
-```
-<Style
-    x:Key="DayIndicatorRedStyle"
-    TargetType="Ellipse">
-    <Setter
-        Property="Width"
-        Value="10" />
-    <Setter
-        Property="Height"
-        Value="10" />
-    <Setter
-        Property="Fill"
-        Value="Red" />
-    <Setter
-        Property="VerticalAlignment"
-        Value="Top" />
-    <Setter
-        Property="HorizontalAlignment"
-        Value="Right" />
-    <Setter
-        Property="Margin"
-        Value="2,2,2,4" />
-</Style>
-```
-## ⚙️How to use Day ToolTips?
-
-![IMAGE_DESCRIPTION](https://raw.githubusercontent.com/Behnam2064/PersianDateTimeWPFTools.doc/refs/heads/main/dayTooltip.png)
-
-C#
-
-```
-persianCalendar.DayToolTips = new Dictionary<DateTime, object>
+updated[DateTime.Today.AddDays(2)] = new CalendarDayInfo
 {
-            { DateTime.Today,"It is today."},
-            { DateTime.Today.AddDays(1),"It is tomorrow."},
+    ToolTip = "Follow-up appointment",
+    HasIndicator = true
 };
+
+calendar.DayMetadata = updated;
 ```
 
-## ✨Tip 1
-The DateTime object should only contain dates.
+This differs from `CalendarEvents`, whose default observable collection and notifying items update the display automatically.
 
-## ✨Tip 2
-If you want to update Day ToolTips you need to do something like the following
-```
-var preTooltips = persianCalendar.DayToolTips;
-preTooltips.Add(DateTime.Today.AddDays(2), "Important business meeting");
-persianCalendar.DayToolTips = preTooltips;
-```
-## You can also create a Template for Day Tooltip.
-XAML
-```
-<DataTemplate
-    x:Key="FancyDayToolTipTemplate">
-    <Border
-        Background="#222"
-        Padding="8"
-        CornerRadius="6">
-        <StackPanel>
-            <TextBlock
-                Text="{Binding}"
-                Foreground="White"
-                FontWeight="Bold" />
-            <TextBlock
-                Text="More..."
-                Foreground="LightGray"
-                FontSize="11" />
-        </StackPanel>
+### Shared tooltip template
+
+Set `DayToolTipTemplate` once for a control. A day's non-null `CalendarDayInfo.ToolTipTemplate` overrides this default. The template receives the original tooltip content, even when event titles are composed with it. It also applies when event display is disabled.
+
+```xml
+<DataTemplate x:Key="FancyDayToolTipTemplate">
+    <Border Background="#222" Padding="8" CornerRadius="6">
+        <TextBlock Text="{Binding}" Foreground="White" TextWrapping="Wrap" />
     </Border>
 </DataTemplate>
 ```
-And in your control
 
-```
-DayToolTipTemplate="{StaticResource FancyDayToolTipTemplate}"
-```
-## ⚙️How to use Day Indicators?
-![IMAGE_DESCRIPTION](https://raw.githubusercontent.com/Behnam2064/PersianDateTimeWPFTools.doc/refs/heads/main/dayIndicator.png)
-
-C#
-
-```
-persianCalendar.DayIndicators = new Dictionary<DateTime, bool>
-{
-            [new DateTime(2025, 12, 23)] = true,
-            [new DateTime(2025, 12, 25)] = true
-};
+```xml
+<pdtt:PersianCalendar
+    DayMetadata="{Binding DayMetadata}"
+    DayToolTipTemplate="{StaticResource FancyDayToolTipTemplate}" />
 ```
 
-## ✨Tip 1
-The DateTime object should only contain dates.
+### Shared indicator style
 
-## ✨Tip 2
-If you want to update Day Indicators you need to do something like the following
-```
-var preDayIndicators = persianCalendar.DayIndicators;
-preDayIndicators.Add(DateTime.Today.AddDays(2), true);
-persianCalendar.DayIndicators = preDayIndicators;
-```
-## You can also create a Style for Day Indicators.
-```
-<Style
-    x:Key="RedDotIndicatorStyle"
-    TargetType="Ellipse">
-    <Setter
-        Property="HorizontalAlignment"
-        Value="Right" />
-    <Setter
-        Property="VerticalAlignment"
-        Value="Top" />
-    <Setter
-        Property="Width"
-        Value="10" />
-    <Setter
-        Property="Height"
-        Value="10" />
-    <Setter
-        Property="Fill"
-        Value="Red" />
+Set `DayIndicatorStyle` as the default for all indicator-enabled metadata entries. A day's non-null `CalendarDayInfo.IndicatorStyle` overrides it. Style and template properties remain supported; only the former separate per-day data dictionaries are deprecated.
+
+```xml
+<Style x:Key="RedDotIndicatorStyle" TargetType="Ellipse">
+    <Setter Property="Width" Value="8" />
+    <Setter Property="Height" Value="8" />
+    <Setter Property="Fill" Value="Red" />
+    <Setter Property="HorizontalAlignment" Value="Right" />
+    <Setter Property="VerticalAlignment" Value="Top" />
+    <Setter Property="Margin" Value="2" />
 </Style>
 ```
-And in your control
 
-```
-DayIndicatorStyle="{StaticResource RedDotIndicatorStyle}"
+```xml
+<pdtt:PersianDatePicker
+    DayMetadata="{Binding DayMetadata}"
+    DayIndicatorStyle="{StaticResource RedDotIndicatorStyle}" />
 ```
 
 ## ISystemClock and ClockProvider
@@ -1372,3 +1336,46 @@ bool expiredAgainstClock = deadline.HasExpired();
 `PersianDateTime` is a static facade; parsing returns `System.DateTime` and `Now` returns an immutable `PersianDateTimeParts` snapshot. `Now` uses one configured service snapshot and reads the configured clock once. Default clock time is local. The date-only text does not discard the captured time or `Kind`, and does not read later configuration changes.
 
 `IsBetween` uses `[startInclusive, endExclusive)`, matching `PersianDateRange.Contains`; equal boundaries form an empty interval and reversed boundaries throw. Use the existing `Contains`, not `IsContains`, on a range. `HasExpired` is true at the deadline (`referenceTime >= deadline`). Comparisons retain tick precision, do not convert time zones and require inputs on the same time basis. For a UTC deadline, pass an explicit UTC reference time. The overload without a reference reads `ClockProvider.Current.Now` once.
+
+
+
+## Day features and UI Automation
+
+Day buttons expose their dates, tooltip text and decorative-layer visibility through UI Automation without adding decorative controls to the accessible tree.
+
+### Finding a day
+
+`CalendarDayButton` supplies AutomationId `Day_yyyy-MM-dd`, based on its Gregorian DateTime date regardless of the display calendar or language. A caller-supplied AutomationProperties.AutomationId takes precedence. Scope the lookup to the appropriate calendar/popup when multiple calendars show the same date.
+
+### Testing rendered states with FlaUI
+
+Decorative Border and Ellipse elements do not need separate automation peers. Query their day button instead:
+
+```csharp
+var day = root.FindFirstDescendant(cf => cf.ByAutomationId("Day_2024-03-21"));
+string status = day.Properties.ItemStatus.Value;
+Assert.Contains("CalendarEvents=1;", status);
+Assert.Contains("CalendarEventHighlight=Visible", status);
+Assert.Contains("DayIndicator1=Visible", status);
+Assert.Contains("DayIndicator2=Collapsed", status);
+Assert.Contains("My tooltip text", day.Properties.HelpText.Value);
+```
+
+The assertions above illustrate a date with one event and metadata supplying an indicator. Select assertions matching the fixture data; the two indicator layers are not always both shown.
+
+ItemStatus fields:
+
+- CalendarEvents: number of event occurrences applied to the day, independent of highlight visibility.
+- CalendarEventHighlight: actual visibility of the named highlight Border.
+- DayIndicator1: actual visibility of the per-day style layer (used by metadata).
+- DayIndicator2: actual visibility of the calendar-wide style layer.
+
+Visible, Collapsed and Hidden reflect the actual template elements. NotVisible means the element has Visibility=Visible but an ancestor prevents it from being visible. NotPresent means a custom/unapplied template does not contain that optional named layer. These states describe visibility, not brush colors, opacity, clipping or pixel output. Wait for the control/template to be loaded and laid out before asserting. Poll the properties for live changes; no custom change-notification events are supplied.
+
+The existing x:Name conventions are used; custom templates may optionally use the same names. They are not required template parts. No placeholder peer is fabricated for an absent layer. A nonempty AutomationProperties.ItemStatus supplied by the caller takes precedence over the generated status.
+
+### Tooltips
+
+HelpText keeps the existing long-date/blackout description and appends readable tooltip content: string, TextBlock, ToolTip containing either, and the standard CalendarEventToolTip's original text plus event titles. Explicit AutomationProperties.HelpText wins. Arbitrary data objects are not converted with ToString; for a complex user DataTemplate, test the actual rendered tooltip text via mouse hover and the tooltip's own UIA subtree.
+
+To test the actual tooltip popup, hover the day with the mouse and find the rendered text in the tooltip UIA subtree.
