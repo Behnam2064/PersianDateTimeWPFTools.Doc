@@ -7,6 +7,9 @@
 - Seven built-in UI translations, custom language resources, and runtime theme switching.
 
 ## Quick start
+
+#### Please read the [link](http://github.com/Behnam2064/PersianDateTimeWPFTools.Doc#persian-calendar) for the latest update.
+
 Install the package in a WPF application:
 
 ```shell
@@ -201,6 +204,8 @@ Calendar culture and digit display are separate from the seven built-in UI trans
 
 ## Calendar events
 
+![IMAGE_DESCRIPTION](https://raw.githubusercontent.com/Behnam2064/PersianDateTimeWPFTools.doc/refs/heads/main/ce-custom-meeting.png)
+
 Add a single-date event directly to a control, or use the optional provider API for recurring and shared occasions. Event dates are independent of the calendar used for display.
 
 ### Add an event without global configuration
@@ -377,6 +382,44 @@ Ranges are start-inclusive and end-exclusive. Start is normalized to its date; t
 Custom providers implement the same range contract and must be safe for concurrent reads. Their `GetEvents` method is synchronous; load external data before supplying it to the display path. The built-in providers do not perform I/O.
 
 `Configure` publishes a new service snapshot; loaded calendars refresh on their UI dispatcher. Hidden popup calendars refresh when loaded. `Reset()` returns to the empty provider and refreshes loaded calendars. For a custom provider whose internal data changes without a configuration update, call `RefreshCalendarEvents()` on the relevant date control from its UI thread.
+
+### Customize calendar event highlights
+
+![IMAGE_DESCRIPTION](https://raw.githubusercontent.com/Behnam2064/PersianDateTimeWPFTools.doc/refs/heads/main/ce-team-meeting.png)
+
+Use `CalendarEventHighlightStyle` on the calendar or picker to set a default highlight for days with events. To customize a specific event, give it a WPF `Style` that targets `Border`. Enable `ShowCalendarEvents` to display events and keep `ShowCalendarEventHighlights` enabled to show their highlights.
+
+```csharp
+using System;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Media;
+using PersianDateTimeWPFTools.Events;
+
+var eventDate = new DateTime(2026, 12, 15);
+var highlightStyle = new Style(typeof(Border));
+highlightStyle.Setters.Add(new Setter(Border.BackgroundProperty, new SolidColorBrush(Color.FromArgb(100, 218, 177, 218))));
+
+// Local event
+calendar.ShowCalendarEvents = true;
+calendar.CalendarEvents.Add(new CalendarEvent(eventDate, "Team meeting")
+{
+    HighlightStyle = highlightStyle
+});
+
+// For a provider, pass the style when creating the event definition.
+var definition = new CalendarEventDefinition(
+    "office-closure",
+    "Office closure",
+    new FixedCalendarEventRule(eventDate),
+    priority: 10,
+    highlightStyle: highlightStyle);
+```
+
+Each day has one highlight. The calendar chooses the highest-priority local event that supplies a style. If none does, it looks for the highest-priority provider event with a style, then falls back to the control’s `CalendarEventHighlightStyle` and finally to the active theme’s default. This selection affects the highlight only. The event list keeps its usual sort order.
+
+If a local event and a provider event share the same date and ID, the local event replaces the provider event for that day, including its highlight style.
+
 
 ### Tooltip and event highlight
 
